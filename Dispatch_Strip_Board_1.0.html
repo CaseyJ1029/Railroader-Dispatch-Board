@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dispatch Strip Board</title>
+<style>
+  :root {
+    --bg: #111827;
+    --panel: #1f2937;
+    --panel2: #273449;
+    --text: #f3f4f6;
+    --muted: #9ca3af;
+    --accent: #38bdf8;
+    --danger: #ef4444;
+    --strip: #f7f1d5;
+    --stripText: #171717;
+    --border: #4b5563;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    height: 64px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: #0b1220;
+    border-bottom: 1px solid #374151;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  h1 { font-size: 20px; margin: 0 14px 0 0; white-space: nowrap; }
+  button, input, textarea, select {
+    font: inherit;
+  }
+  button {
+    border: 1px solid #4b5563;
+    background: #263244;
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  button:hover { background: #34445b; }
+  button.primary { background: #0369a1; border-color: #0284c7; }
+  button.primary:hover { background: #075985; }
+  button.danger { background: #7f1d1d; border-color: #991b1b; }
+  .spacer { flex: 1; }
+
+  #board {
+    display: flex;
+    gap: 12px;
+    padding: 14px;
+    min-height: calc(100vh - 64px);
+    overflow-x: auto;
+    align-items: flex-start;
+  }
+  .column {
+    flex: 0 0 330px;
+    background: var(--panel);
+    border: 1px solid #374151;
+    border-radius: 8px;
+    min-height: 240px;
+    max-height: calc(100vh - 94px);
+    display: flex;
+    flex-direction: column;
+  }
+  .column.drag-over { outline: 2px dashed var(--accent); outline-offset: -3px; }
+  .column-header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px;
+    border-bottom: 1px solid #374151;
+    background: var(--panel2);
+    border-radius: 8px 8px 0 0;
+  }
+  .column-title {
+    flex: 1;
+    font-weight: bold;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .count { color: var(--muted); font-size: 12px; }
+  .icon-btn { padding: 5px 8px; }
+  .strips {
+    padding: 10px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 160px;
+  }
+  .strip {
+    background: var(--strip);
+    color: var(--stripText);
+    border: 1px solid #a8a078;
+    border-radius: 4px;
+    margin-bottom: 9px;
+    padding: 8px;
+    cursor: grab;
+    box-shadow: 0 2px 5px rgba(0,0,0,.25);
+    user-select: none;
+  }
+  .strip.type-local { background: #d9f99d; border-color: #84cc16; }
+  .strip.type-passenger { background: #bfdbfe; border-color: #60a5fa; }
+  .strip.type-fast-freight { background: #fed7aa; border-color: #fb923c; }
+  .strip.type-switcher { background: #e9d5ff; border-color: #a78bfa; }
+  .strip:active { cursor: grabbing; }
+  .strip.dragging { opacity: .45; }
+  .strip.insert-before { box-shadow: 0 -4px 0 0 var(--accent) inset; border-top: 3px solid var(--accent); }
+  .strip.insert-after { box-shadow: 0 4px 0 0 var(--accent) inset; border-bottom: 3px solid var(--accent); }
+  .strip-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    border-bottom: 1px solid #b7ae88;
+    padding-bottom: 5px;
+    margin-bottom: 5px;
+  }
+  .callsign { font-weight: 800; font-size: 17px; }
+  .aircraft { font-weight: bold; }
+  .route { font-family: monospace; font-size: 13px; margin: 4px 0; }
+  .strip-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px 8px;
+    font-size: 12px;
+  }
+  .field-label { color: #625d47; font-size: 9px; text-transform: uppercase; }
+  .strip, .strip * { text-transform: uppercase; }
+  .strip .icon-btn { text-transform: none; }
+  .unassigned { color: #ef4444; font-weight: 700; }
+  .driver-ae { color: #f59e0b; font-weight: 800; }
+  .danger-text { color: #7f1d1d; font-weight: 800; }
+  .strip-controls {
+    display: flex;
+    gap: 5px;
+    margin-top: 7px;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .move-btn {
+    min-width: 28px;
+    padding: 4px 6px;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .notes {
+    margin-top: 6px;
+    padding-top: 5px;
+    border-top: 1px dashed #b7ae88;
+    font-size: 11px;
+    white-space: pre-wrap;
+    text-transform: none;
+  }
+  .empty { color: var(--muted); text-align: center; padding: 30px 8px; font-size: 13px; }
+  .add-column {
+    flex: 0 0 170px;
+    min-height: 52px;
+    border: 1px dashed #4b5563;
+    background: transparent;
+  }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    width: min(650px, calc(100vw - 28px));
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #1f2937;
+    border: 1px solid #4b5563;
+    border-radius: 10px;
+    padding: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    position: relative;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .modal h2 { margin: 0; font-size: 18px; }
+  .close-btn {
+    background: transparent;
+    border: 1px solid #4b5563;
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .close-btn:hover { background: #2b3748; }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 12px; color: #cbd5e1; }
+  input, textarea, select {
+    background: #111827;
+    color: var(--text);
+    border: 1px solid #4b5563;
+    border-radius: 5px;
+    padding: 8px;
+    outline: none;
+  }
+  textarea { min-height: 70px; resize: vertical; }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  .modal-actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+    margin-top: 16px; padding-top: 12px; border-top: 1px solid #374151;
+  }
+  .hint { color: var(--muted); font-size: 11px; margin-top: 8px; }
+  @media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: auto; }
+    .column { flex-basis: 290px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Dispatching Board</h1>
+  <button class="primary" onclick="openStripModal()">+ Dispatch Strip</button>
+  <button onclick="openColumnModal()">+ Column</button>
+  <button onclick="document.getElementById('importFile').click()">Import</button>
+  <button onclick="document.getElementById('importStripFile').click()">Import Strip</button>
+  <button onclick="exportData()">Export</button>
+  <input id="importFile" type="file" accept=".json" style="display:none" onchange="importData(event)">
+  <input id="importStripFile" type="file" accept=".json" style="display:none" onchange="importStripFile(event)">
+  <div class="spacer"></div>
+  <button onclick="resetBoard()">Reset</button>
+</header>
+
+<main id="board"></main>
+
+<div class="modal-backdrop" id="stripModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="stripModalTitle">New Dispatch Strip</h2>
+      <button type="button" class="close-btn" aria-label="Close" onclick="closeModals()">×</button>
+    </div>
+    <form id="stripForm" onsubmit="saveStrip(event)">
+      <input type="hidden" id="stripId">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Train No.</label>
+          <input id="callsign" placeholder="Train 123" required>
+        </div>
+        <div class="form-group">
+          <label>Locomotive</label>
+          <input id="locomotive" placeholder="1432">
+        </div>
+        <div class="form-group">
+          <label>Departure</label>
+          <input id="departure" placeholder="ANDREWS">
+        </div>
+        <div class="form-group">
+          <label>Destination</label>
+          <input id="destination" placeholder="SYLVA">
+        </div>
+        <!-- Altitude and Squawk fields removed per request -->
+        <div class="form-group">
+          <label>Type</label>
+          <select id="type">
+            <option value="">-- Select --</option>
+            <option value="LOCAL">LOCAL</option>
+            <option value="PASSENGER">PASSENGER</option>
+            <option value="FAST FREIGHT">FAST FREIGHT</option>
+            <option value="SWITCHER">SWITCHER</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Priority</label>
+          <input id="runway" placeholder="LEVEL 1">
+        </div>
+        <div class="form-group">
+          <label>Driver</label>
+          <input id="driver" placeholder="CASEYJ1029">
+        </div>
+        <div class="form-group">
+          <label>Route</label>
+          <input id="route" placeholder="AD BR WH DB SY">
+        </div>
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="notes" placeholder="Dispatch notes..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Column</label>
+          <select id="stripColumn"></select>
+        </div>
+          
+        <button type="submit" class="primary">Save Strip</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="columnModal">
+  <div class="modal">
+    <h2>New Column</h2>
+    <form onsubmit="saveColumn(event)">
+      <div class="form-group">
+        <label>Column name</label>
+        <input id="columnName" placeholder="WH SWITCHER" required autofocus>
+      </div>
+      <div class="modal-actions">
+        <button type="button" onclick="closeModals()">Cancel</button>
+        <button type="submit" class="primary">Create Column</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = "DispatchStripBoardV1";
+
+let state = loadState();
+let draggedStripId = null;
+let importTargetStripId = null; // kept for backward-compat in case other callers expect it
+let importInsertAfterId = null; // when set, import creates a NEW strip inserted after this id
+let draggedColumnId = null;
+
+function defaultState() {
+  return {
+    columns: [
+      {id: uid(), name: "EASTBOUND"},
+      {id: uid(), name: "WESTBOUND"},
+      {id: uid(), name: "SYLVA SWITCH"},
+      {id: uid(), name: "ANDREWS SWITCH"},
+    ],
+    strips: []
+  };
+}
+function uid() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // migrate old `aircraft` key to `locomotive`
+      if (parsed && Array.isArray(parsed.strips)) {
+        parsed.strips.forEach(s => {
+          if (s.aircraft && !s.locomotive) {
+            s.locomotive = s.aircraft;
+            delete s.aircraft;
+          }
+        });
+      }
+      return parsed;
+    }
+  } catch(e) {}
+  const s = defaultState();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  return s;
+}
+function persist() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+}
+function stripTypeClass(type) {
+  const normalized = String(type || "").trim().toUpperCase();
+  if (normalized === "LOCAL") return "type-local";
+  if (normalized === "PASSENGER") return "type-passenger";
+  if (normalized === "FAST FREIGHT") return "type-fast-freight";
+  if (normalized === "SWITCHER") return "type-switcher";
+  return "";
+}
+function fieldHtml(value, options = {}) {
+  const text = String(value ?? "");
+  const trimmed = text.trim();
+  const isDriver = !!options.driver;
+  const isAe = isDriver && trimmed.toUpperCase() === "AE";
+  const isDanger = trimmed.includes("!!!");
+
+  if (!trimmed) {
+    return isDriver ? '<span class="unassigned">UNASSIGNED</span>' : "";
+  }
+
+  if (isAe && isDanger) {
+    return '<span class="danger-text"><span class="driver-ae">AE</span></span>';
+  }
+  if (isAe) {
+    return '<span class="driver-ae">AE</span>';
+  }
+  if (isDanger) {
+    return '<span class="danger-text">' + esc(trimmed) + '</span>';
+  }
+
+  return esc(trimmed);
+}
+function render() {
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+
+  state.columns.forEach(col => {
+    const column = document.createElement("section");
+    column.className = "column";
+    column.dataset.columnId = col.id;
+    column.innerHTML = `
+      <div class="column-header">
+        <div class="column-title" title="Double-click to rename">${esc(col.name)}</div>
+        <span class="count"></span>
+        <button class="icon-btn" title="Move left" onclick="moveColumn('${col.id}', -1)">←</button>
+        <button class="icon-btn" title="Move right" onclick="moveColumn('${col.id}', 1)">→</button>
+        <button class="icon-btn" title="Rename" onclick="renameColumn('${col.id}')">✎</button>
+        <button class="icon-btn danger" title="Delete column" onclick="deleteColumn('${col.id}')">×</button>
+      </div>
+      <div class="strips"></div>
+    `;
+
+    const stripsEl = column.querySelector(".strips");
+    const strips = state.strips.filter(s => s.columnId === col.id);
+    column.querySelector(".count").textContent = strips.length;
+
+    if (!strips.length) {
+      stripsEl.innerHTML = '<div class="empty">Drop strips here</div>';
+    } else {
+      strips.forEach(s => stripsEl.appendChild(makeStrip(s)));
+    }
+
+    stripsEl.addEventListener("dragover", e => {
+      e.preventDefault();
+      column.classList.add("drag-over");
+    });
+    stripsEl.addEventListener("dragleave", () => column.classList.remove("drag-over"));
+    stripsEl.addEventListener("drop", e => {
+      e.preventDefault();
+      column.classList.remove("drag-over");
+      if (!draggedStripId) return;
+      const strip = state.strips.find(s => s.id === draggedStripId);
+      if (strip) {
+        strip.columnId = col.id;
+        persist();
+        render();
+      }
+      draggedStripId = null;
+    });
+
+    // enable dragging/reordering columns
+    column.draggable = true;
+    column.addEventListener('dragstart', e => {
+      if (e.target !== column) return;
+      if (draggedStripId) {
+        e.preventDefault();
+        return;
+      }
+      try {
+        e.dataTransfer.setData('text/plain', col.id);
+        e.dataTransfer.effectAllowed = 'move';
+      } catch (err) {}
+      draggedColumnId = col.id;
+      draggedStripId = null;
+      column.classList.add('dragging');
+    });
+    column.addEventListener('dragover', e => {
+      if (draggedStripId) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      column.classList.add('drag-over');
+    });
+    column.addEventListener('dragleave', () => column.classList.remove('drag-over'));
+    column.addEventListener('drop', e => {
+      e.preventDefault();
+      column.classList.remove('drag-over');
+      if (draggedStripId) return;
+      if (!draggedColumnId || draggedColumnId === col.id) return;
+      const fromIndex = state.columns.findIndex(x => x.id === draggedColumnId);
+      const toIndex = state.columns.findIndex(x => x.id === col.id);
+      if (fromIndex === -1 || toIndex === -1) return;
+      const cols = [...state.columns];
+      const [moved] = cols.splice(fromIndex, 1);
+      cols.splice(toIndex, 0, moved);
+      state.columns = cols;
+      persist(); render();
+      draggedColumnId = null;
+    });
+    column.addEventListener('dragend', () => { draggedColumnId = null; draggedStripId = null; column.classList.remove('dragging'); });
+
+    board.appendChild(column);
+  });
+
+  const add = document.createElement("button");
+  add.className = "add-column";
+  add.textContent = "+ Add Column";
+  add.onclick = openColumnModal;
+  board.appendChild(add);
+}
+function makeStrip(s) {
+  const el = document.createElement("article");
+  el.className = `strip ${stripTypeClass(s.type)}`.trim();
+  el.draggable = true;
+  el.dataset.id = s.id;
+  el.innerHTML = `
+    <div class="strip-top">
+      <span class="callsign">${esc(s.callsign || "NO TRAIN NO")}</span>
+      <span class="aircraft">${esc(s.locomotive)}</span>
+    </div>
+    <div class="route">${esc(s.departure)} → ${esc(s.destination)}</div>
+    <div class="strip-grid">
+      <div><div class="field-label">Type</div>${fieldHtml(s.type)}</div>
+      <div><div class="field-label">Priority</div>${fieldHtml(s.runway)}</div>
+      <div><div class="field-label">Driver</div>${fieldHtml(s.driver, { driver: true })}</div>
+    </div>
+    ${s.route ? `<div class="route">${fieldHtml(s.route)}</div>` : ""}
+    ${s.notes ? `<div class="notes">${fieldHtml(s.notes)}</div>` : ""}
+    <div class="strip-controls">
+      <button class="move-btn" title="Move up" onclick="event.stopPropagation();moveStrip('${s.id}', -1)">↑</button>
+      <button class="move-btn" title="Move down" onclick="event.stopPropagation();moveStrip('${s.id}', 1)">↓</button>
+      <button class="icon-btn" title="Export" onclick="event.stopPropagation();exportStrip('${s.id}')">⤓</button>
+      <button class="icon-btn" onclick="event.stopPropagation();editStrip('${s.id}')">Edit</button>
+      <button class="icon-btn danger" onclick="event.stopPropagation();deleteStrip('${s.id}')">Delete</button>
+    </div>
+  `;
+    el.addEventListener("dragstart", e => {
+      // e.stopPropagation(); // Removed to allow bubbling
+    try {
+      e.dataTransfer.setData('text/plain', s.id);
+      e.dataTransfer.effectAllowed = 'move';
+    } catch (err) {}
+    draggedColumnId = null;
+    draggedStripId = s.id;
+    el.classList.add("dragging");
+  });
+  el.addEventListener("dragover", e => {
+    e.preventDefault();
+      // e.stopPropagation(); // Removed to allow bubbling
+    if (!(draggedStripId && draggedStripId !== s.id)) return;
+    e.dataTransfer.dropEffect = "move";
+    const rect = el.getBoundingClientRect();
+    const mid = rect.top + rect.height / 2;
+    const pos = (e.clientY < mid) ? 'before' : 'after';
+    el.classList.toggle('insert-before', pos === 'before');
+    el.classList.toggle('insert-after', pos === 'after');
+  });
+  el.addEventListener("dragleave", () => {
+    el.classList.remove('insert-before', 'insert-after');
+  });
+  el.addEventListener("drop", e => {
+    e.preventDefault();
+      // e.stopPropagation(); // Removed to allow bubbling
+    if (!draggedStripId || draggedStripId === s.id) return;
+
+    const dragged = state.strips.find(x => x.id === draggedStripId);
+    if (!dragged || dragged.columnId !== s.columnId) return;
+
+    const columnStrips = state.strips.filter(x => x.columnId === dragged.columnId);
+    const fromIndex = columnStrips.findIndex(x => x.id === draggedStripId);
+    const targetIndex = columnStrips.findIndex(x => x.id === s.id);
+    if (fromIndex === -1 || targetIndex === -1) return;
+
+    // Remove the moved strip from the array
+    const [moved] = columnStrips.splice(fromIndex, 1);
+
+    // Decide whether to insert before or after the target strip based on mouse position
+    const rect = el.getBoundingClientRect();
+    const offsetY = e.clientY - rect.top;
+    const insertBefore = offsetY < rect.height / 2;
+    const insertIndex = insertBefore ? targetIndex : targetIndex + 1;
+
+    columnStrips.splice(insertIndex, 0, moved);
+
+    state.strips = [...state.strips.filter(x => x.columnId !== dragged.columnId), ...columnStrips];
+    persist(); render();
+    draggedStripId = null;
+  });
+  el.addEventListener("dragend", () => {
+    draggedStripId = null;
+    el.classList.remove("dragging");
+  });
+  return el;
+}
+
+function openStripModal(id = null) {
+  populateColumnSelect();
+  document.getElementById("stripForm").reset();
+  document.getElementById("stripId").value = "";
+  document.getElementById("stripModalTitle").textContent = "New Dispatch Strip";
+    if (id) {
+    const s = state.strips.find(x => x.id === id);
+    if (!s) return;
+    document.getElementById("stripModalTitle").textContent = "Edit Dispatch Strip";
+    document.getElementById("stripId").value = s.id;
+    for (const k of ["callsign","locomotive","driver","departure","destination","type","runway","route","notes"])
+      document.getElementById(k).value = s[k] || "";
+    document.getElementById("stripColumn").value = s.columnId;
+  } else if (state.columns[0]) {
+    document.getElementById("stripColumn").value = state.columns[0].id;
+  }
+  document.getElementById("stripModal").classList.add("show");
+  setTimeout(() => document.getElementById("callsign").focus(), 50);
+}
+function editStrip(id) { openStripModal(id); }
+function saveStrip(e) {
+  e.preventDefault();
+  const id = document.getElementById("stripId").value;
+  const data = {};
+  for (const k of ["callsign","locomotive","driver","departure","destination","type","runway","route","notes"])
+    data[k] = document.getElementById(k).value.trim();
+  data.columnId = document.getElementById("stripColumn").value;
+  if (id) {
+    const s = state.strips.find(x => x.id === id);
+    Object.assign(s, data);
+  } else {
+    state.strips.push({id: uid(), ...data});
+  }
+  persist(); render(); closeModals();
+}
+function moveStrip(id, direction) {
+  const strip = state.strips.find(x => x.id === id);
+  if (!strip) return;
+
+  const columnId = strip.columnId;
+  const columnStrips = state.strips.filter(x => x.columnId === columnId);
+  const currentIndex = columnStrips.findIndex(x => x.id === id);
+  if (currentIndex === -1) return;
+
+  const targetIndex = currentIndex + direction;
+  if (targetIndex < 0 || targetIndex >= columnStrips.length) return;
+
+  const [moved] = columnStrips.splice(currentIndex, 1);
+  columnStrips.splice(targetIndex, 0, moved);
+
+  const otherStrips = state.strips.filter(x => x.columnId !== columnId);
+  state.strips = [...otherStrips, ...columnStrips];
+  persist(); render();
+}
+
+function deleteStrip(id) {
+  const s = state.strips.find(x => x.id === id);
+  if (s && confirm(`Delete Dispatch strip ${s.callsign || ""}?`)) {
+    state.strips = state.strips.filter(x => x.id !== id);
+    persist(); render();
+  }
+}
+
+function populateColumnSelect() {
+  const sel = document.getElementById("stripColumn");
+  sel.innerHTML = state.columns.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+}
+function openColumnModal() {
+  document.getElementById("columnName").value = "";
+  document.getElementById("columnModal").classList.add("show");
+  setTimeout(() => document.getElementById("columnName").focus(), 50);
+}
+function saveColumn(e) {
+  e.preventDefault();
+  const name = document.getElementById("columnName").value.trim();
+  if (!name) return;
+  state.columns.push({id: uid(), name});
+  persist(); render(); closeModals();
+}
+function renameColumn(id) {
+  const c = state.columns.find(x => x.id === id);
+  if (!c) return;
+  const name = prompt("Column name:", c.name);
+  if (name && name.trim()) {
+    c.name = name.trim();
+    persist(); render();
+  }
+}
+function moveColumn(id, direction) {
+  const idx = state.columns.findIndex(x => x.id === id);
+  if (idx === -1) return;
+  const target = idx + direction;
+  if (target < 0 || target >= state.columns.length) return;
+  const cols = [...state.columns];
+  const [moved] = cols.splice(idx, 1);
+  cols.splice(target, 0, moved);
+  state.columns = cols;
+  persist(); render();
+}
+function deleteColumn(id) {
+  const c = state.columns.find(x => x.id === id);
+  if (!c) return;
+  const count = state.strips.filter(s => s.columnId === id).length;
+  if (count && !confirm(`This column contains ${count} strip(s). Delete the column and those strips?`)) return;
+  state.columns = state.columns.filter(x => x.id !== id);
+  state.strips = state.strips.filter(s => s.columnId !== id);
+  persist(); render();
+}
+function closeModals() {
+  document.querySelectorAll(".modal-backdrop").forEach(x => x.classList.remove("show"));
+}
+document.querySelectorAll(".modal-backdrop").forEach(b => {
+  b.addEventListener("click", e => { /* do nothing on backdrop click */ });
+});
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "Dispatch-strip-board.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!Array.isArray(data.columns) || !Array.isArray(data.strips)) throw new Error();
+      state = data;
+      persist(); render();
+      alert("Board imported successfully.");
+    } catch {
+      alert("That file does not appear to be a valid Dispatch Strip Board export.");
+    }
+    e.target.value = "";
+  };
+  reader.readAsText(file);
+}
+function exportStrip(id) {
+  const s = state.strips.find(x => x.id === id);
+  if (!s) return alert('Strip not found');
+  const name = (s.callsign || s.locomotive || id).toString().replace(/\s+/g,'_');
+  const blob = new Blob([JSON.stringify(s, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `strip-${name}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function startImportStrip(id) {
+  // Instead of overwriting the clicked strip, import will create a NEW strip
+  // inserted after the clicked strip (same column). If `id` is null, append.
+  importTargetStripId = null;
+  importInsertAfterId = id || null;
+  document.getElementById('importStripFile').click();
+}
+
+function importStripFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (typeof data !== 'object' || Array.isArray(data)) throw new Error();
+
+      // allowed keys to import for a new strip
+      const allowed = ["callsign","locomotive","driver","departure","destination","type","runway","route","notes","columnId"];
+      const payload = {};
+      allowed.forEach(k => { if (k in data) payload[k] = data[k]; });
+
+      // If importInsertAfterId is set, insert new strip after that strip (same column)
+      if (importInsertAfterId) {
+        const ref = state.strips.find(x => x.id === importInsertAfterId);
+        if (!ref) return alert('Reference strip not found');
+        const colId = ref.columnId || (payload.columnId || state.columns[0] && state.columns[0].id);
+        const newStrip = { id: uid(), columnId: colId, ...payload };
+
+        // insert at the TOP of the referenced column
+        const columnStrips = state.strips.filter(x => x.columnId === colId);
+        const other = state.strips.filter(x => x.columnId !== colId);
+        columnStrips.unshift(newStrip);
+        state.strips = [...other, ...columnStrips];
+        persist(); render();
+        alert('Strip imported at the top of the column.');
+      } else if (importTargetStripId) {
+        // backward-compat: overwrite target strip (if other callers use this behavior)
+        const s = state.strips.find(x => x.id === importTargetStripId);
+        if (!s) return alert('Target strip not found');
+        Object.assign(s, payload);
+        persist(); render();
+        alert('Strip imported successfully.');
+      } else {
+        // no reference: create a new strip and insert at TOP of first column
+        const colId = payload.columnId || (state.columns[0] && state.columns[0].id);
+        const newStrip = { id: uid(), columnId: colId, ...payload };
+        const columnStrips = state.strips.filter(x => x.columnId === colId);
+        const other = state.strips.filter(x => x.columnId !== colId);
+        columnStrips.unshift(newStrip);
+        state.strips = [...other, ...columnStrips];
+        persist(); render();
+        alert('Strip imported at the top of the column.');
+      }
+
+    } catch (err) {
+      alert('That file does not appear to be a valid strip JSON.');
+    }
+    e.target.value = '';
+    importTargetStripId = null;
+    importInsertAfterId = null;
+  };
+  reader.readAsText(file);
+}
+function resetBoard() {
+  if (!confirm("Reset the entire board? This will remove all columns and strips.")) return;
+  state = defaultState();
+  persist(); render();
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeModals();
+  if (e.key === "n" && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
+    openStripModal();
+  }
+});
+
+render();
+</script>
+</body>
+</html>
