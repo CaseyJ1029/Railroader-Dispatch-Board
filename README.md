@@ -1,6 +1,6 @@
 # Dispatch Strip Board
 
-A lightweight browser-based dispatch board for tracking train/dispatch strips across multiple columns.
+A lightweight browser-based dispatch board for tracking train progress in Railroader
 
 ## Features
 
