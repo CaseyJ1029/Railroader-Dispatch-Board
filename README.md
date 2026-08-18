@@ -16,42 +16,17 @@ A lightweight browser-based dispatch board for tracking train/dispatch strips ac
 
 ## Project Files
 
-- `Flight_Strip_Board template Library.html` — main application file
-- `Dispatch_Strip_Board_1.0.html` — alternate board version
-- `template-library/` — related template assets
+- `README.md` — project description
+- `Dispatch_Strip_Board_1.0.html` — main application file
 
 ## Installation / Setup
 
 This project is a static HTML app, so there is no package installation required.
 
-### Option 1: Open directly in a browser
-
-1. Open the folder containing the project files.
-2. Double-click `Flight_Strip_Board template Library.html`.
-3. The board will open in your default web browser.
-
-### Option 2: Run a local web server
-
-If you prefer to serve it locally:
-
-1. Open a terminal in the project folder.
-2. Run one of the following commands:
-
-   Windows PowerShell:
-   ```powershell
-   py -m http.server 8000
-   ```
-
-   Or:
-   ```powershell
-   python -m http.server 8000
-   ```
-
-3. Open:
-   ```text
-   http://localhost:8000/
-   ```
-4. Select the HTML file in the browser to load the app.
+1. Download the project,
+2. Open the folder containing the project files.
+3. Double-click `Dispatch_Strip_Board_1.0.html`.
+4. The board will open in your default web browser.
 
 ## Usage
 
