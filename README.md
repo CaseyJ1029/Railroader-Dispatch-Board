@@ -37,6 +37,8 @@ This project is a static HTML app, so there is no package installation required.
 - Use `Import` or `Import Strip` to load saved board data.
 - Use `Export` to save board data to JSON.
 
+For a more detailed explanation, watch Tutorial
+
 ## Notes
 
 - Data is saved in the browser using `localStorage`.
