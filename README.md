@@ -1,4 +1,4 @@
-# Dispatch Strip Board
+# Railroader Dispatch Board
 
 A lightweight browser-based dispatch board for tracking train progress in Railroader
 
